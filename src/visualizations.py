@@ -159,30 +159,42 @@ class SentimentVisualizer:
         if not text.strip():
             return None
         
-        # Create word cloud
-        wordcloud = WordCloud(
-            width=800, height=400,
-            background_color='white',
-            colormap='viridis' if sentiment == 'Positive' else 'Reds',
-            max_words=100,
-            relative_scaling=0.5,
-            random_state=42
-        ).generate(text)
-        
-        # Convert to base64 string
-        img_buffer = io.BytesIO()
-        plt.figure(figsize=(12, 6))
-        plt.imshow(wordcloud, interpolation='bilinear')
-        plt.axis('off')
-        plt.title(f"Word Cloud - {sentiment} Reviews", fontsize=16, fontweight='bold', pad=20)
-        plt.tight_layout()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        img_buffer.seek(0)
-        img_str = base64.b64encode(img_buffer.read()).decode()
-        
-        return img_str
+        try:
+            # Create word cloud
+            wordcloud = WordCloud(
+                width=800, height=400,
+                background_color='white',
+                colormap='viridis' if sentiment == 'Positive' else 'Reds',
+                max_words=100,
+                relative_scaling=0.5,
+                random_state=42
+            ).generate(text)
+            
+            # Convert to base64 string
+            img_buffer = io.BytesIO()
+            
+            # Create figure and axis properly
+            fig = plt.figure(figsize=(12, 6))
+            ax = fig.add_subplot(111)
+            
+            # Display the word cloud
+            ax.imshow(wordcloud, interpolation='bilinear')
+            ax.axis('off')
+            ax.set_title(f"Word Cloud - {sentiment} Reviews", fontsize=16, fontweight='bold', pad=20)
+            
+            # Save to buffer
+            plt.tight_layout()
+            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+            plt.close(fig)
+            
+            img_buffer.seek(0)
+            img_str = base64.b64encode(img_buffer.read()).decode()
+            
+            return img_str
+            
+        except Exception as e:
+            print(f"Error creating word cloud: {e}")
+            return None
     
     def create_top_words_chart(self, df: pd.DataFrame, sentiment: str, 
                               text_column: str = 'reviewText_processed',

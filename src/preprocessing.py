@@ -90,13 +90,13 @@ class TextPreprocessor:
         filtered_words = [word for word in words if word not in self.stop_words]
         return ' '.join(filtered_words)
     
-    def preprocess_dataframe(self, df: pd.DataFrame, text_column: str = 'reviewText') -> pd.DataFrame:
+    def preprocess_dataframe(self, df: pd.DataFrame, text_column: str = 'Review_Text') -> pd.DataFrame:
         """
-        Preprocess entire dataframe
+        Preprocess entire dataframe with flexible column detection
         
         Args:
             df (pd.DataFrame): Input dataframe
-            text_column (str): Name of the text column
+            text_column (str): Name of the text column (optional, will auto-detect)
             
         Returns:
             pd.DataFrame: Preprocessed dataframe
@@ -104,55 +104,107 @@ class TextPreprocessor:
         # Create a copy to avoid modifying original data
         processed_df = df.copy()
         
+        # Handle different possible column names for review text
+        possible_text_columns = ['Review_Text', 'reviewText', 'text', 'review_text', 'content', 'review', 'comment']
+        actual_text_column = None
+        
+        # If text_column is specified and exists, use it
+        if text_column in processed_df.columns:
+            actual_text_column = text_column
+        else:
+            # Auto-detect the text column
+            for col in possible_text_columns:
+                if col in processed_df.columns:
+                    actual_text_column = col
+                    break
+        
+        if actual_text_column is None:
+            raise ValueError(f"Could not find review text column. Expected one of: {possible_text_columns}")
+        
         # Remove missing values
         initial_count = len(processed_df)
-        processed_df = processed_df.dropna(subset=[text_column])
+        processed_df = processed_df.dropna(subset=[actual_text_column])
         removed_count = initial_count - len(processed_df)
         
         # Clean text
-        processed_df[f'{text_column}_cleaned'] = processed_df[text_column].apply(self.clean_text)
+        processed_df[f'{actual_text_column}_cleaned'] = processed_df[actual_text_column].apply(self.clean_text)
         
         # Remove stopwords
-        processed_df[f'{text_column}_processed'] = processed_df[f'{text_column}_cleaned'].apply(self.remove_stopwords)
+        processed_df[f'{actual_text_column}_processed'] = processed_df[f'{actual_text_column}_cleaned'].apply(self.remove_stopwords)
         
         # Remove empty reviews after preprocessing
-        processed_df = processed_df[processed_df[f'{text_column}_processed'].str.len() > 0]
+        processed_df = processed_df[processed_df[f'{actual_text_column}_processed'].str.len() > 0]
         
         return processed_df
     
-    def create_sentiment_labels(self, df: pd.DataFrame, rating_column: str = 'overall') -> pd.DataFrame:
+    def create_sentiment_labels(self, df: pd.DataFrame, rating_column: str = 'Rating') -> pd.DataFrame:
         """
-        Convert ratings to sentiment labels
+        Convert ratings to sentiment labels with flexible column detection
         
         Args:
             df (pd.DataFrame): Input dataframe
-            rating_column (str): Name of the rating column
+            rating_column (str): Name of the rating column (optional, will auto-detect)
             
         Returns:
             pd.DataFrame: Dataframe with sentiment labels
         """
-        # Create sentiment labels: 1-3 = Negative, 4-5 = Positive
-        df['sentiment'] = df[rating_column].apply(
-            lambda x: 'Negative' if x <= 3 else 'Positive'
+        # Handle different possible column names for rating
+        possible_rating_columns = ['Rating', 'overall', 'rating', 'score', 'stars', 'star_rating']
+        actual_rating_column = None
+        
+        # If rating_column is specified and exists, use it
+        if rating_column in df.columns:
+            actual_rating_column = rating_column
+        else:
+            # Auto-detect the rating column
+            for col in possible_rating_columns:
+                if col in df.columns:
+                    actual_rating_column = col
+                    break
+        
+        if actual_rating_column is None:
+            raise ValueError(f"Could not find rating column. Expected one of: {possible_rating_columns}")
+        
+        # Create sentiment labels: 1-2 = Negative, 3 = Neutral, 4-5 = Positive
+        df['sentiment'] = df[actual_rating_column].apply(
+            lambda x: 'Negative' if x <= 2 else ('Neutral' if x == 3 else 'Positive')
         )
         
         return df
     
-    def vectorize_text(self, df: pd.DataFrame, text_column: str = 'reviewText_processed', 
+    def vectorize_text(self, df: pd.DataFrame, text_column: str = 'Review_Text_processed', 
                       max_features: int = 5000) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Vectorize text data using TF-IDF
+        Vectorize text data using TF-IDF with flexible column detection
         
         Args:
             df (pd.DataFrame): Input dataframe
-            text_column (str): Name of the processed text column
+            text_column (str): Name of the processed text column (optional, will auto-detect)
             max_features (int): Maximum number of features
             
         Returns:
             Tuple[np.ndarray, np.ndarray]: Feature matrix and target labels
         """
+        # Handle different possible column names for processed text
+        possible_text_columns = ['Review_Text_processed', 'reviewText_processed', 'text_processed', 
+                                'content_processed', 'review_processed', 'comment_processed']
+        actual_text_column = None
+        
+        # If text_column is specified and exists, use it
+        if text_column in df.columns:
+            actual_text_column = text_column
+        else:
+            # Auto-detect the processed text column
+            for col in possible_text_columns:
+                if col in df.columns:
+                    actual_text_column = col
+                    break
+        
+        if actual_text_column is None:
+            raise ValueError(f"Could not find processed text column. Expected one of: {possible_text_columns}")
+        
         # Prepare text data
-        texts = df[text_column].tolist()
+        texts = df[actual_text_column].tolist()
         labels = df['sentiment'].tolist()
         
         # Initialize TF-IDF vectorizer

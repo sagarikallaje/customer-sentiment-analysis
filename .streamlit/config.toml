@@ -1,0 +1,47 @@
+[server]
+# Maximum file upload size (in bytes)
+# 200MB = 200 * 1024 * 1024 = 209715200 bytes
+maxUploadSize = 209715200
+
+# Enable CORS for file uploads
+enableCORS = true
+
+# Maximum message size
+maxMessageSize = 209715200
+
+# Enable WebSocket compression
+enableWebsocketCompression = true
+
+[client]
+# Show error details
+showErrorDetails = true
+
+[browser]
+# Server address
+serverAddress = "localhost"
+
+# Server port
+serverPort = 8502
+
+# Gather usage stats
+gatherUsageStats = false
+
+[theme]
+# Primary color
+primaryColor = "#366092"
+
+# Background color
+backgroundColor = "#FFFFFF"
+
+# Secondary background color
+secondaryBackgroundColor = "#F0F2F6"
+
+# Text color
+textColor = "#262730"
+
+# Font
+font = "sans serif"
+
+[logger]
+# Log level
+level = "info"
