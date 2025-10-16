@@ -21,7 +21,7 @@ showErrorDetails = true
 serverAddress = "localhost"
 
 # Server port
-serverPort = 8502
+serverPort = 8501
 
 # Gather usage stats
 gatherUsageStats = false

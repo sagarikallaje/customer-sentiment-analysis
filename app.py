@@ -483,6 +483,385 @@ def train_model():
         st.error(f"Error training model: {str(e)}")
         return False
 
+def create_enhanced_sidebar():
+    """Create an enhanced user-friendly sidebar with additional features"""
+    
+    # Enhanced sidebar header with better styling
+    st.sidebar.markdown("""
+    <div style="text-align: center; padding: 1rem 0; border-bottom: 2px solid #3498db; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; margin-bottom: 1rem;">
+        <h2 style="color: white; margin: 0; font-size: 1.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎛️ Control Panel</h2>
+        <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0; font-size: 0.9rem;">Customize your analysis</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Quick Stats Section
+    st.sidebar.markdown("### 📊 Quick Stats")
+    if st.session_state.data_loaded:
+        total_reviews = len(st.session_state.processed_data)
+        st.sidebar.metric("Total Reviews", f"{total_reviews:,}")
+        
+        # Find rating column for quick stats
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in st.session_state.processed_data.columns:
+                rating_column = col
+                break
+        
+        if rating_column:
+            avg_rating = st.session_state.processed_data[rating_column].mean()
+            st.sidebar.metric("Avg Rating", f"{avg_rating:.1f} ⭐")
+    
+    st.sidebar.markdown("---")
+    
+    # Data Upload Section with enhanced features
+    st.sidebar.markdown("### 📁 Data Management")
+    
+    # Sample Data Generation Option
+    st.sidebar.markdown("#### 🎲 Generate Sample Data")
+    
+    col1, col2 = st.sidebar.columns(2)
+    
+    with col1:
+        sample_size = st.sidebar.selectbox(
+            "Sample Size",
+            [100, 500, 1000, 5000, 10000],
+            index=2,  # Default to 1000
+            help="Number of sample reviews to generate",
+            key="sample_size"
+        )
+    
+    with col2:
+        if st.sidebar.button("🎲 Generate", help="Create sample e-commerce review data"):
+            with st.sidebar.spinner('Generating sample data...'):
+                try:
+                    # Import the sample data generator
+                    from create_sample_data import generate_sample_data
+                    
+                    # Generate sample data
+                    sample_data = generate_sample_data(sample_size)
+                    
+                    # Store in session state
+                    st.session_state.data = sample_data
+                    st.session_state.data_loaded = True
+                    st.session_state.processed_data = st.session_state.preprocessor.preprocess_data(sample_data)
+                    
+                    st.sidebar.success(f"✅ Generated {sample_size:,} sample reviews!")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.sidebar.error(f"❌ Error generating sample data: {str(e)}")
+    
+    st.sidebar.markdown("---")
+    
+    # File uploader with better styling
+    st.sidebar.markdown("#### 📤 Upload Your Data")
+    
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload CSV Dataset",
+        type=['csv'],
+        help="Upload your customer review data in CSV format",
+        key="file_uploader"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            # Show file info
+            file_size = len(uploaded_file.getvalue()) / 1024 / 1024  # MB
+            st.sidebar.success(f"📄 File loaded: {uploaded_file.name}")
+            st.sidebar.info(f"📏 Size: {file_size:.2f} MB")
+            
+            # Load and process data
+            with st.sidebar.spinner('Processing data...'):
+                new_data = pd.read_csv(uploaded_file)
+                st.session_state.data = new_data
+                st.session_state.data_loaded = True
+                st.session_state.processed_data = st.session_state.preprocessor.preprocess_data(new_data)
+                st.sidebar.success("✅ Data processed successfully!")
+                st.rerun()
+                
+        except Exception as e:
+            st.sidebar.error(f"❌ Error loading file: {str(e)}")
+    
+    # Quick Actions Section
+    st.sidebar.markdown("### ⚡ Quick Actions")
+    
+    col1, col2 = st.sidebar.columns(2)
+    
+    with col1:
+        if st.button("🔄 Refresh", help="Reload the current dataset"):
+            st.session_state.data_loaded = False
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Reset Filters", help="Clear all applied filters"):
+            st.session_state.filtered_data = st.session_state.processed_data
+            st.rerun()
+    
+    # Export Options
+    st.sidebar.markdown("### 📤 Export Options")
+    
+    if st.sidebar.button("📥 Download Current Data", help="Download filtered data as CSV"):
+        if 'filtered_data' in st.session_state and len(st.session_state.filtered_data) > 0:
+            csv = st.session_state.filtered_data.to_csv(index=False)
+            st.sidebar.download_button(
+                label="💾 Download CSV",
+                data=csv,
+                file_name=f"filtered_sentiment_data_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.sidebar.warning("No data to export")
+    
+    st.sidebar.markdown("---")
+    
+    # Enhanced Data Filters Section
+    st.sidebar.markdown("### 🔍 Data Filters")
+    
+    # Smart Filter Presets
+    st.sidebar.markdown("#### 🎯 Quick Filters")
+    
+    filter_preset = st.sidebar.selectbox(
+        "Choose Filter Preset",
+        ["All Data", "High Ratings (4-5)", "Low Ratings (1-2)", "Recent Reviews", "Long Reviews", "Short Reviews"],
+        help="Apply common filter combinations quickly"
+    )
+    
+    # Apply preset filters
+    filtered_data = st.session_state.processed_data.copy()
+    
+    if filter_preset == "High Ratings (4-5)":
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in filtered_data.columns:
+                rating_column = col
+                break
+        
+        if rating_column:
+            filtered_data = filtered_data[filtered_data[rating_column] >= 4]
+    
+    elif filter_preset == "Low Ratings (1-2)":
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in filtered_data.columns:
+                rating_column = col
+                break
+        
+        if rating_column:
+            filtered_data = filtered_data[filtered_data[rating_column] <= 2]
+    
+    elif filter_preset == "Long Reviews":
+        text_column = None
+        possible_text_columns = ['reviewText', 'Review_Text', 'text', 'review_text', 'content', 'review', 'comment']
+        
+        for col in possible_text_columns:
+            if col in filtered_data.columns:
+                text_column = col
+                break
+        
+        if text_column:
+            filtered_data = filtered_data[filtered_data[text_column].str.len() > 200]
+    
+    elif filter_preset == "Short Reviews":
+        text_column = None
+        possible_text_columns = ['reviewText', 'Review_Text', 'text', 'review_text', 'content', 'review', 'comment']
+        
+        for col in possible_text_columns:
+            if col in filtered_data.columns:
+                text_column = col
+                break
+        
+        if text_column:
+            filtered_data = filtered_data[filtered_data[text_column].str.len() < 100]
+    
+    # Advanced Filters Section
+    st.sidebar.markdown("#### ⚙️ Advanced Filters")
+    
+    # Category filter with better styling
+    category_column = None
+    possible_category_columns = ['Category', 'category', 'cat', 'product_category']
+    
+    for col in possible_category_columns:
+        if col in filtered_data.columns:
+            category_column = col
+            break
+    
+    if category_column:
+        categories = ['All Categories'] + sorted(list(filtered_data[category_column].unique()))
+        selected_category = st.sidebar.selectbox(
+            "🏷️ Product Category", 
+            categories,
+            help="Filter reviews by product category",
+            key="category_filter"
+        )
+        
+        if selected_category != 'All Categories':
+            filtered_data = filtered_data[filtered_data[category_column] == selected_category]
+    
+    # Enhanced Rating filter with visual slider
+    st.sidebar.markdown("#### ⭐ Rating Range")
+    
+    rating_column = None
+    possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+    
+    for col in possible_rating_columns:
+        if col in filtered_data.columns:
+            rating_column = col
+            break
+    
+    if rating_column:
+        min_rating, max_rating = st.sidebar.slider(
+            "Select Rating Range",
+            min_value=1.0,
+            max_value=5.0,
+            value=(1.0, 5.0),
+            step=0.5,
+            help="Drag sliders to filter by rating range",
+            key="rating_slider"
+        )
+        
+        if min_rating > max_rating:
+            min_rating, max_rating = max_rating, min_rating
+        
+        filtered_data = filtered_data[
+            (filtered_data[rating_column] >= min_rating) &
+            (filtered_data[rating_column] <= max_rating)
+        ]
+    
+    # Text Length Filter
+    st.sidebar.markdown("#### 📝 Review Length")
+    
+    text_column = None
+    possible_text_columns = ['reviewText', 'Review_Text', 'text', 'review_text', 'content', 'review', 'comment']
+    
+    for col in possible_text_columns:
+        if col in filtered_data.columns:
+            text_column = col
+            break
+    
+    if text_column:
+        min_length, max_length = st.sidebar.slider(
+            "Review Length (characters)",
+            min_value=0,
+            max_value=1000,
+            value=(0, 1000),
+            step=50,
+            help="Filter reviews by text length",
+            key="length_slider"
+        )
+        
+        filtered_data = filtered_data[
+            (filtered_data[text_column].str.len() >= min_length) &
+            (filtered_data[text_column].str.len() <= max_length)
+        ]
+    
+    # Search Filter
+    st.sidebar.markdown("#### 🔍 Text Search")
+    
+    search_term = st.sidebar.text_input(
+        "Search in Reviews",
+        placeholder="Enter keywords...",
+        help="Search for specific words or phrases in reviews",
+        key="search_input"
+    )
+    
+    if search_term:
+        if text_column:
+            filtered_data = filtered_data[
+                filtered_data[text_column].str.contains(search_term, case=False, na=False)
+            ]
+    
+    # Filter Summary
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📈 Filter Summary")
+    
+    original_count = len(st.session_state.processed_data)
+    filtered_count = len(filtered_data)
+    
+    st.sidebar.metric("Original Reviews", f"{original_count:,}")
+    st.sidebar.metric("Filtered Reviews", f"{filtered_count:,}")
+    
+    if original_count > 0:
+        filter_percentage = (filtered_count / original_count) * 100
+        st.sidebar.metric("Filter Applied", f"{filter_percentage:.1f}%")
+    
+    # Data Preview Section
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 👀 Data Preview")
+    
+    if st.session_state.data_loaded and len(filtered_data) > 0:
+        with st.sidebar.expander("📊 Sample Data Preview"):
+            # Show first few rows
+            preview_data = filtered_data.head(3)
+            
+            # Display key columns only
+            display_cols = []
+            for col in preview_data.columns:
+                if any(keyword in col.lower() for keyword in ['review', 'rating', 'category', 'text']):
+                    display_cols.append(col)
+            
+            if display_cols:
+                st.dataframe(preview_data[display_cols], use_container_width=True)
+            else:
+                st.dataframe(preview_data.iloc[:, :3], use_container_width=True)
+            
+            st.caption(f"Showing 3 of {len(filtered_data):,} total reviews")
+    
+    # Tips and Help Section
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 💡 Tips & Help")
+    
+    with st.sidebar.expander("📚 How to Use Filters"):
+        st.markdown("""
+        **Quick Filters**: Use presets for common scenarios
+        
+        **Advanced Filters**: 
+        - Category: Filter by product type
+        - Rating: Use sliders for range selection
+        - Length: Filter by review length
+        - Search: Find specific keywords
+        
+        **Export**: Download filtered data anytime
+        """)
+    
+    with st.sidebar.expander("🎲 Sample Data Features"):
+        st.markdown("""
+        **Generated Sample Data Includes:**
+        - Product reviews with ratings
+        - Customer demographics
+        - Product categories
+        - Review dates and metadata
+        - Sentiment labels
+        
+        **Perfect for testing and demos!**
+        """)
+    
+    with st.sidebar.expander("🔧 Troubleshooting"):
+        st.markdown("""
+        **No Data Showing?**
+        - Check if filters are too restrictive
+        - Try resetting filters
+        - Verify data format
+        
+        **Slow Performance?**
+        - Reduce data size with filters
+        - Use quick filters for faster results
+        
+        **Need Sample Data?**
+        - Use the "Generate Sample Data" option
+        - Choose from 100 to 10,000 reviews
+        """)
+    
+    # Store filtered data in session state
+    st.session_state.filtered_data = filtered_data
+    
+    return filtered_data
+
 def create_sidebar():
     """Create sidebar with modern, accessible controls"""
     
@@ -661,8 +1040,16 @@ def create_sidebar():
     st.sidebar.markdown("---")
     
     # Category filter with better styling
-    if 'category' in st.session_state.processed_data.columns:
-        categories = ['All Categories'] + list(st.session_state.processed_data['category'].unique())
+    category_column = None
+    possible_category_columns = ['Category', 'category', 'cat', 'product_category']
+    
+    for col in possible_category_columns:
+        if col in st.session_state.processed_data.columns:
+            category_column = col
+            break
+    
+    if category_column:
+        categories = ['All Categories'] + list(st.session_state.processed_data[category_column].unique())
         selected_category = st.sidebar.selectbox(
             "Product Category", 
             categories,
@@ -672,7 +1059,7 @@ def create_sidebar():
         
         if selected_category != 'All Categories':
             filtered_data = st.session_state.processed_data[
-                st.session_state.processed_data['category'] == selected_category
+                st.session_state.processed_data[category_column] == selected_category
             ]
         else:
             filtered_data = st.session_state.processed_data
@@ -692,10 +1079,20 @@ def create_sidebar():
     if min_rating > max_rating:
         min_rating, max_rating = max_rating, min_rating
     
-    filtered_data = filtered_data[
-        (filtered_data['overall'] >= min_rating) & 
-        (filtered_data['overall'] <= max_rating)
-    ]
+    # Find the correct rating column name
+    rating_column = None
+    possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+    
+    for col in possible_rating_columns:
+        if col in filtered_data.columns:
+            rating_column = col
+            break
+    
+    if rating_column:
+        filtered_data = filtered_data[
+            (filtered_data[rating_column] >= min_rating) & 
+            (filtered_data[rating_column] <= max_rating)
+        ]
     
     # Date range filter (if available)
     if 'reviewDate' in filtered_data.columns:
@@ -894,13 +1291,27 @@ def create_dashboard(data):
     with col1:
         st.plotly_chart(
             st.session_state.visualizer.create_sentiment_pie_chart(data),
-            use_container_width=True
+            use_container_width=True,
+            key="sentiment_pie_chart",
+            config={
+                'displayModeBar': True,
+                'displaylogo': False,
+                'modeBarButtonsToRemove': ['pan2d', 'lasso2d', 'select2d'],
+                'responsive': True
+            }
         )
     
     with col2:
         st.plotly_chart(
             st.session_state.visualizer.create_rating_distribution_chart(data),
-            use_container_width=True
+            use_container_width=True,
+            key="rating_distribution_chart",
+            config={
+                'displayModeBar': True,
+                'displaylogo': False,
+                'modeBarButtonsToRemove': ['pan2d', 'lasso2d', 'select2d'],
+                'responsive': True
+            }
         )
     
     # Additional insights
@@ -909,16 +1320,47 @@ def create_dashboard(data):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.info(f"**Most Common Rating**: {data['overall'].mode().iloc[0]} stars")
+        # Find the correct rating column name
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in data.columns:
+                rating_column = col
+                break
+        
+        if rating_column:
+            st.info(f"**Most Common Rating**: {data[rating_column].mode().iloc[0]} stars")
     
     with col2:
-        if 'category' in data.columns:
-            top_category = data['category'].mode().iloc[0]
+        # Find the correct category column name
+        category_column = None
+        possible_category_columns = ['Category', 'category', 'cat', 'product_category']
+        
+        for col in possible_category_columns:
+            if col in data.columns:
+                category_column = col
+                break
+        
+        if category_column:
+            top_category = data[category_column].mode().iloc[0]
             st.info(f"**Top Category**: {top_category}")
     
     with col3:
-        avg_text_length = data['reviewText'].str.len().mean()
-        st.info(f"**Avg Review Length**: {avg_text_length:.0f} characters")
+        # Find the correct review text column name
+        review_text_column = None
+        possible_text_columns = ['reviewText', 'Review_Text', 'text', 'review_text', 'content', 'review', 'comment']
+        
+        for col in possible_text_columns:
+            if col in data.columns:
+                review_text_column = col
+                break
+        
+        if review_text_column:
+            avg_text_length = data[review_text_column].str.len().mean()
+            st.info(f"**Avg Review Length**: {avg_text_length:.0f} characters")
+        else:
+            st.info("**Avg Review Length**: Not available")
     
     # Download section
     st.markdown('<h3 class="sub-header fade-in-up">Export Data</h3>', unsafe_allow_html=True)
@@ -1108,14 +1550,17 @@ def create_visualizations_tab(data):
     # Sentiment vs Rating scatter plot
     st.plotly_chart(
         st.session_state.visualizer.create_sentiment_vs_rating_scatter(data),
-        use_container_width=True
+        use_container_width=True,
+        key="sentiment_vs_rating_scatter"
     )
     
     # Category analysis
-    if 'category' in data.columns:
+    category_chart = st.session_state.visualizer.create_category_analysis(data)
+    if category_chart.data:  # Check if chart has data
         st.plotly_chart(
-            st.session_state.visualizer.create_category_analysis(data),
-            use_container_width=True
+            category_chart,
+            use_container_width=True,
+            key="category_analysis_chart"
         )
     
     # Model performance charts
@@ -1129,7 +1574,8 @@ def create_visualizations_tab(data):
                 st.session_state.visualizer.create_model_performance_chart(
                     st.session_state.training_results['evaluation']
                 ),
-                use_container_width=True
+                use_container_width=True,
+                key="model_performance_chart"
             )
         
         with col2:
@@ -1138,7 +1584,8 @@ def create_visualizations_tab(data):
             y_pred = np.array(st.session_state.training_results['evaluation']['predictions'])
             st.plotly_chart(
                 st.session_state.visualizer.create_confusion_matrix_heatmap(y_true, y_pred),
-                use_container_width=True
+                use_container_width=True,
+                key="confusion_matrix_heatmap"
             )
     
     # Top words charts
@@ -1149,190 +1596,16 @@ def create_visualizations_tab(data):
     with col1:
         st.plotly_chart(
             st.session_state.visualizer.create_top_words_chart(data, 'Positive'),
-            use_container_width=True
+            use_container_width=True,
+            key="top_words_positive_chart"
         )
     
     with col2:
         st.plotly_chart(
             st.session_state.visualizer.create_top_words_chart(data, 'Negative'),
-            use_container_width=True
+            use_container_width=True,
+            key="top_words_negative_chart"
         )
-
-def create_dataset_info_tab():
-    """Create dataset information and Kaggle instructions tab"""
-    st.markdown('<h2 class="sub-header fade-in-up">Dataset Information</h2>', unsafe_allow_html=True)
-    
-    # Kaggle dataset instructions
-    st.markdown("### How to Upload Kaggle Datasets")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        **Upload Process:**
-        1. Download your dataset from Kaggle as CSV
-        2. Use the "Upload CSV Dataset" button in the sidebar
-        3. **File size limit: 200MB** (supports large datasets)
-        4. **Flexible column detection** - app will auto-detect column names
-        5. Required columns (any of these names work):
-           - **Review Text:** Review_Text, reviewText, text, content, review, comment
-           - **Rating:** Rating, overall, rating, score, stars, star_rating
-        6. Optional columns: Product_Name, Category, Brand, etc.
-        
-        **Performance Features:**
-        - Chunked reading for files > 50MB
-        - Progress indicators for files > 10MB
-        - Memory optimization for datasets > 100k rows
-        - Real-time file size display
-        - **Smart column detection** - works with various naming conventions
-        """)
-    
-    with col2:
-        st.markdown("""
-        **Popular Kaggle Datasets:**
-        - Amazon Customer Reviews
-        - Yelp Reviews
-        - IMDB Movie Reviews
-        - Restaurant Reviews
-        - Product Reviews
-        """)
-    
-    st.markdown("---")
-    
-    # Dataset requirements
-    st.markdown("### Dataset Requirements")
-    
-    requirements_df = pd.DataFrame({
-        'Column': ['Review Text*', 'Rating*', 'Product_Name', 'Category', 'Brand', 'Customer_ID', 'Review_Date', 'Sentiment_Label'],
-        'Required': ['Yes', 'Yes', 'No', 'No', 'No', 'No', 'No', 'No'],
-        'Accepted Names': [
-            'Review_Text, reviewText, text, content, review, comment',
-            'Rating, overall, rating, score, stars, star_rating',
-            'Product_Name, product_name, product',
-            'Category, category, cat',
-            'Brand, brand, manufacturer',
-            'Customer_ID, customer_id, user_id',
-            'Review_Date, review_date, date',
-            'Sentiment_Label, sentiment, label'
-        ],
-        'Description': [
-            'The actual review text content',
-            'Rating from 1-5 stars',
-            'Name of the product being reviewed',
-            'Product category (e.g., Electronics, Fashion)',
-            'Brand/manufacturer of the product',
-            'Unique customer identifier',
-            'Date of review submission',
-            'Pre-labeled sentiment (Positive/Negative/Neutral)'
-        ],
-        'Example': [
-            '"Great product, highly recommend!"',
-            '5',
-            '"iPhone 15 Pro Max"',
-            '"Electronics"',
-            '"Apple"',
-            '"CUST_0001"',
-            '"2023-01-15"',
-            '"Positive"'
-        ]
-    })
-    
-    st.dataframe(requirements_df, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Sample data preview
-    st.markdown("### Sample Data Format")
-    
-    sample_data = pd.DataFrame({
-        'Review_Text': [
-            'This product is absolutely amazing! Great quality and fast shipping.',
-            'Terrible product! Poor quality and not as described.',
-            'Good value for money. Works as expected.'
-        ],
-        'Rating': [5, 1, 4],
-        'Product_Name': ['iPhone 15 Pro Max', 'Generic Phone Case', 'Bluetooth Headphones'],
-        'Category': ['Electronics', 'Electronics', 'Electronics'],
-        'Brand': ['Apple', 'Generic Brand', 'Sony'],
-        'Customer_ID': ['CUST_0001', 'CUST_0002', 'CUST_0003'],
-        'Review_Date': ['2023-01-15', '2023-01-16', '2023-01-17'],
-        'Sentiment_Label': ['Positive', 'Negative', 'Positive']
-    })
-    
-    st.dataframe(sample_data, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Tips and best practices
-    st.markdown("### Tips for Better Results")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        **Data Quality:**
-        - Clean, well-formatted text
-        - Consistent rating scales
-        - Sufficient data volume (1000+ reviews)
-        """)
-    
-    with col2:
-        st.markdown("""
-        **Model Performance:**
-        - More data = better accuracy
-        - Balanced positive/negative reviews
-        - Diverse vocabulary
-        """)
-    
-    with col3:
-        st.markdown("""
-        **Processing:**
-        - Large datasets may take longer
-        - Consider sampling for testing
-        - Monitor memory usage
-        """)
-    
-    # Current dataset info
-    if st.session_state.data_loaded:
-        st.markdown("---")
-        st.markdown("### Current Dataset Information")
-        
-        current_data = st.session_state.data
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Reviews", f"{len(current_data):,}")
-        
-        with col2:
-            if 'overall' in current_data.columns:
-                avg_rating = current_data['overall'].mean()
-                st.metric("Avg Rating", f"{avg_rating:.1f}")
-        
-        with col3:
-            if 'category' in current_data.columns:
-                categories = current_data['category'].nunique()
-                st.metric("Categories", categories)
-        
-        with col4:
-            if 'reviewDate' in current_data.columns:
-                date_range = f"{current_data['reviewDate'].min()} to {current_data['reviewDate'].max()}"
-                st.metric("Date Range", "Available")
-        
-        # Show column information
-        st.markdown("**Dataset Columns:**")
-        columns_info = []
-        for col in current_data.columns:
-            dtype = str(current_data[col].dtype)
-            null_count = current_data[col].isnull().sum()
-            columns_info.append({
-                'Column': col,
-                'Type': dtype,
-                'Null Values': null_count,
-                'Sample Value': str(current_data[col].iloc[0])[:50] + "..." if len(str(current_data[col].iloc[0])) > 50 else str(current_data[col].iloc[0])
-            })
-        
-        st.dataframe(pd.DataFrame(columns_info), use_container_width=True)
 
 def create_word_clouds_tab(data):
     """Create word clouds tab"""
@@ -1356,7 +1629,8 @@ def create_word_clouds_tab(data):
             # Show top words for positive reviews
             st.plotly_chart(
                 st.session_state.visualizer.create_top_words_chart(positive_data, 'Positive'),
-                use_container_width=True
+                use_container_width=True,
+                key="word_cloud_positive_chart"
             )
     
     with col2:
@@ -1368,30 +1642,74 @@ def create_word_clouds_tab(data):
             # Show top words for negative reviews
             st.plotly_chart(
                 st.session_state.visualizer.create_top_words_chart(negative_data, 'Negative'),
-                use_container_width=True
+                use_container_width=True,
+                key="word_cloud_negative_chart"
             )
 
 def main():
     """Main application function"""
     
-    # Header with gradient background
-    st.markdown('<div class="main-container">', unsafe_allow_html=True)
-    st.markdown('<h1 class="main-header">Customer Sentiment Analysis Dashboard</h1>', unsafe_allow_html=True)
+    # Header with gradient background and responsive design
+    st.markdown('<div class="main-header">', unsafe_allow_html=True)
+    st.markdown('<h1>Customer Sentiment Analysis Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Load data if not already loaded
+    # Quick Demo Section
     if not st.session_state.data_loaded:
-        if load_data():
-            st.success("Data loaded successfully!")
-        else:
-            st.error("Failed to load data!")
-            return
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; margin: 1rem 0; text-align: center;">
+            <h3 style="color: white; margin: 0 0 1rem 0;">🚀 Get Started Quickly!</h3>
+            <p style="color: rgba(255,255,255,0.9); margin: 0;">Generate sample data or upload your own CSV file using the sidebar controls</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🎲 Generate 1000 Sample Reviews", help="Create sample data for testing"):
+                with st.spinner('Generating sample data...'):
+                    try:
+                        from create_sample_data import generate_sample_data
+                        sample_data = generate_sample_data(1000)
+                        st.session_state.data = sample_data
+                        st.session_state.data_loaded = True
+                        st.session_state.processed_data = st.session_state.preprocessor.preprocess_data(sample_data)
+                        st.success("✅ Sample data generated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+        
+        with col2:
+            if st.button("📊 Generate 5000 Sample Reviews", help="Create larger sample dataset"):
+                with st.spinner('Generating sample data...'):
+                    try:
+                        from create_sample_data import generate_sample_data
+                        sample_data = generate_sample_data(5000)
+                        st.session_state.data = sample_data
+                        st.session_state.data_loaded = True
+                        st.session_state.processed_data = st.session_state.preprocessor.preprocess_data(sample_data)
+                        st.success("✅ Sample data generated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+        
+        with col3:
+            st.info("💡 **Tip**: Use the sidebar to upload your own CSV files or generate custom sample data!")
     
-    # Create sidebar
-    filtered_data = create_sidebar()
+    # Load data if not already loaded with progress tracking
+    if not st.session_state.data_loaded:
+        with st.spinner('🔄 Loading data and initializing dashboard...'):
+            if load_data():
+                st.success("✅ Data loaded successfully!")
+            else:
+                st.error("❌ Failed to load data!")
+                return
+    
+    # Create enhanced sidebar
+    filtered_data = create_enhanced_sidebar()
     
     # Main content tabs with styling
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Dashboard", "Prediction", "Visualizations", "Word Clouds", "Dataset Info"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Prediction", "Visualizations", "Word Clouds"])
     
     with tab1:
         create_dashboard(filtered_data)
@@ -1404,9 +1722,6 @@ def main():
     
     with tab4:
         create_word_clouds_tab(filtered_data)
-    
-    with tab5:
-        create_dataset_info_tab()
 
 if __name__ == "__main__":
     main()

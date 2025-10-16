@@ -77,7 +77,19 @@ class SentimentVisualizer:
         Returns:
             plotly.graph_objects.Figure: Bar chart figure
         """
-        rating_counts = df['overall'].value_counts().sort_index()
+        # Find the correct rating column name
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in df.columns:
+                rating_column = col
+                break
+        
+        if not rating_column:
+            return go.Figure()
+            
+        rating_counts = df[rating_column].value_counts().sort_index()
         
         fig = go.Figure(data=[go.Bar(
             x=rating_counts.index,
@@ -197,7 +209,7 @@ class SentimentVisualizer:
             return None
     
     def create_top_words_chart(self, df: pd.DataFrame, sentiment: str, 
-                              text_column: str = 'reviewText_processed',
+                              text_column: str = None,
                               top_n: int = 20) -> go.Figure:
         """
         Create a horizontal bar chart for top words
@@ -211,10 +223,20 @@ class SentimentVisualizer:
         Returns:
             plotly.graph_objects.Figure: Bar chart figure
         """
+        # Find the correct text column name
+        if text_column is None:
+            possible_text_columns = ['Review_Text_processed', 'reviewText_processed', 'Review_Text', 
+                                   'reviewText', 'text', 'review_text', 'content', 'review', 'comment']
+            
+            for col in possible_text_columns:
+                if col in df.columns:
+                    text_column = col
+                    break
+        
         # Filter data by sentiment
         sentiment_data = df[df['sentiment'] == sentiment]
         
-        if len(sentiment_data) == 0:
+        if len(sentiment_data) == 0 or text_column not in df.columns:
             return go.Figure()
         
         # Combine all text and split into words
@@ -301,10 +323,22 @@ class SentimentVisualizer:
         Returns:
             plotly.graph_objects.Figure: Scatter plot figure
         """
+        # Find the correct rating column name
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in df.columns:
+                rating_column = col
+                break
+        
+        if not rating_column:
+            return go.Figure()
+            
         sentiment_numeric = df['sentiment'].map({'Negative': 0, 'Positive': 1})
         
         fig = go.Figure(data=[go.Scatter(
-            x=df['overall'],
+            x=df[rating_column],
             y=sentiment_numeric,
             mode='markers',
             marker=dict(
@@ -338,11 +372,20 @@ class SentimentVisualizer:
         Returns:
             plotly.graph_objects.Figure: Bar chart figure
         """
-        if 'category' not in df.columns:
+        # Find the correct category column name
+        category_column = None
+        possible_category_columns = ['Category', 'category', 'cat', 'product_category']
+        
+        for col in possible_category_columns:
+            if col in df.columns:
+                category_column = col
+                break
+        
+        if category_column is None:
             return go.Figure()
         
         # Create cross-tabulation
-        cross_tab = pd.crosstab(df['category'], df['sentiment'])
+        cross_tab = pd.crosstab(df[category_column], df['sentiment'])
         
         fig = go.Figure()
         
@@ -392,14 +435,34 @@ class SentimentVisualizer:
         positive_reviews = len(df[df['sentiment'] == 'Positive'])
         negative_reviews = len(df[df['sentiment'] == 'Negative'])
         
+        # Find the correct rating column name
+        rating_column = None
+        possible_rating_columns = ['overall', 'Rating', 'rating', 'score', 'stars', 'star_rating']
+        
+        for col in possible_rating_columns:
+            if col in df.columns:
+                rating_column = col
+                break
+        
+        avg_rating = df[rating_column].mean() if rating_column else 0
+        
+        # Find the correct category column name
+        category_column = None
+        possible_category_columns = ['Category', 'category', 'cat', 'product_category']
+        
+        for col in possible_category_columns:
+            if col in df.columns:
+                category_column = col
+                break
+        
         summary = {
             'total_reviews': total_reviews,
             'positive_reviews': positive_reviews,
             'negative_reviews': negative_reviews,
             'positive_percentage': (positive_reviews / total_reviews) * 100,
             'negative_percentage': (negative_reviews / total_reviews) * 100,
-            'avg_rating': df['overall'].mean() if 'overall' in df.columns else 0,
-            'categories': df['category'].nunique() if 'category' in df.columns else 0
+            'avg_rating': avg_rating,
+            'categories': df[category_column].nunique() if category_column else 0
         }
         
         return summary
